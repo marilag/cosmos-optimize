@@ -7,17 +7,35 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.AzureKeyVault;
+
+
 
 namespace Company.Function
 {
-    public static class fn1
+    public static class Function1
     {
-        [FunctionName("fn1")]
+        [FunctionName("Function1")]
         public static async Task<IActionResult> Run(
             [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
-            ILogger log)
+            ILogger log,ExecutionContext context)
         {
             log.LogInformation("C# HTTP trigger function processed a request.");
+
+
+var configBuilder = new ConfigurationBuilder()
+    .SetBasePath(context.FunctionAppDirectory)
+    .AddJsonFile("local.settings.json", optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables();
+
+var config = configBuilder.Build();
+
+configBuilder.AddAzureKeyVault(
+    $"https://{config["AzureKeyVault:VaultName"]}.vault.azure.net/"
+);
+
+config = configBuilder.Build();
 
             string name = req.Query["name"];
 
@@ -26,7 +44,7 @@ namespace Company.Function
             name = name ?? data?.name;
 
             return name != null
-                ? (ActionResult)new OkObjectResult($"Hello, {name}")
+                ? (ActionResult)new OkObjectResult($"Hello, {config["CosmosKey"]}")
                 : new BadRequestObjectResult("Please pass a name on the query string or in the request body");
         }
     }
