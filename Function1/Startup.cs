@@ -22,8 +22,15 @@ namespace CosmosOptimize
             );
 
             config = configBuilder.Build();
-            builder.Services.Replace(ServiceDescriptor.Singleton(typeof(IConfiguration), config));
 
+            builder.Services.Replace(ServiceDescriptor.Singleton(typeof(IConfiguration), config));
+            builder.Services.AddSingleton<ICosmosDBSQLService, CosmosDBSQLService>();
+            builder.Services.Configure<CosmosDBSQLOptions>(cosmosoptions =>
+                        {
+                            cosmosoptions.EndpointUri = config["CosmosDb:EndpointUri"];
+                            cosmosoptions.Key = config["CosmosKey"];
+                            cosmosoptions.Database = config["CosmosDb:Database"];
+                        });
         }
     }
 }

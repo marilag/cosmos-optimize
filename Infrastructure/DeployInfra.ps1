@@ -19,3 +19,5 @@ az keyvault secret set --vault-name kv-cosmos  -n cosmoskey --value $key
 az keyvault set-policy -n kv-cosmos --upn md@dewise.com --secret-permissions get list --key-permissions --certificate-permissions --storage-permissions
 
 az cosmosdb sql database create -n sql-cosmos-optimize -a db-cosmos-optimize -g cosmos-optimize --throughput 1000
+
+az cosmosdb sql container create -g cosmos-optimize -a db-cosmos-optimize -d sql-cosmos-optimize -n Mentor1 --partition-key-path "/MentorID"

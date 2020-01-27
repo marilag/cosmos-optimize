@@ -26,8 +26,7 @@ dotnet build
 dotnet add package Microsoft.Azure.Cosmos --interactive
 dotnet add package Microsoft.Extensions.Configuration.AzureKeyVault --interactive
 #<PackageReference Include="Microsoft.Extensions.Configuration.AzureKeyVault" Version="2.1.1" />
-
-
+dotnet add package  Microsoft.Azure.Cosmos
 ## Deploy
 
 #3.1 Create with enable msi 
@@ -35,3 +34,4 @@ az storage account  create -n storcosmosoptimize -g rg-cosmos-optimize -l westeu
 az functionapp create --name func-cosmos-optimize-weu --consumption-plan-location westeurope -g rg-cosmos-optimize -s storcosmosoptimize
 
 #3.2. Add function MSI access to keyvault
+#3.3 Deploy code
