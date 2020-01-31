@@ -25,11 +25,13 @@ namespace CosmosOptimize
 
             builder.Services.Replace(ServiceDescriptor.Singleton(typeof(IConfiguration), config));
             builder.Services.AddSingleton<ICosmosDBSQLService, CosmosDBSQLService>();
+            
             builder.Services.Configure<CosmosDBSQLOptions>(cosmosoptions =>
                         {
                             cosmosoptions.EndpointUri = config["CosmosDb:EndpointUri"];
                             cosmosoptions.Key = config["CosmosKey"];
                             cosmosoptions.Database = config["CosmosDb:Database"];
+                            cosmosoptions.DefaultRU = int.Parse(config["CosmosDb:DefaultRU"]);
                         });
         }
     }

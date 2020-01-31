@@ -8,6 +8,9 @@ namespace CosmosOptimize
 {
     public interface ICosmosDBSQLService
     {
+        CosmosClientOptions CosmosClientOptions { get; set; }
+        Database cosmosDatabase { get; set; }
+
         Task<T> DeleteItemAysnc<T>(Container container, string Id, dynamic partitionkey);
         Task<Container> GetOrCreateContainerAsync(string container, string partitionPath);
         Task<List<T>> QueryAsync<T>(Container container, QueryDefinition queryDefinition);
@@ -15,27 +18,39 @@ namespace CosmosOptimize
         Task<List<T>> QueryScanAsync<T>(Container container, QueryDefinition queryDefinition);
         Task<T> ReadItemAsync<T>(Container container, string Id);
         Task<T> ReadItemAsync<T>(Container container, string Id, string partitionkey);
-        Task<T> UpsertAsync<T>(Container container, T entity);
+        Task<T> UpsertItemAsync<T>(Container container, T entity, ItemRequestOptions requestoptions = null);
+         Task DeleteDatabase();
     }
 
     public class CosmosDBSQLService : ICosmosDBSQLService
     {
         private static CosmosClient _client;
-        private static Database cosmosDatabase = null;
+        public Database cosmosDatabase { get; set; }
         private readonly CosmosDBSQLOptions _options;
+        public CosmosClientOptions CosmosClientOptions { get; set; }
 
 
         public CosmosDBSQLService(IOptions<CosmosDBSQLOptions> options)
         {
             _options = options.Value;
-            _client = new CosmosClient(_options.EndpointUri, _options.Key, new CosmosClientOptions
-            { ConnectionMode = _options.ConnectionMode, GatewayModeMaxConnectionLimit = 10, Serializer = _options.Serializer });
-        }
+            CosmosClientOptions = new CosmosClientOptions
+            {
+                ConnectionMode = _options.ConnectionMode,
+                GatewayModeMaxConnectionLimit = 10,
+                Serializer = _options.Serializer
+            };
+            _client = new CosmosClient(_options.EndpointUri, _options.Key, CosmosClientOptions);
 
+        }
+        public async Task DeleteDatabase()
+        {
+            cosmosDatabase = _client.GetDatabase(_options.Database);
+            var requestResponse = await cosmosDatabase.DeleteAsync();
+        }
 
         public async Task<Container> GetOrCreateContainerAsync(string container, string partitionPath)
         {
-            cosmosDatabase = await _client.CreateDatabaseIfNotExistsAsync(_options.Database, 400);
+            cosmosDatabase = await _client.CreateDatabaseIfNotExistsAsync(_options.Database, _options.DefaultRU);
 
             ContainerProperties containerProperties = new ContainerProperties(id: container, partitionKeyPath: partitionPath);
 
@@ -43,14 +58,15 @@ namespace CosmosOptimize
                 containerProperties: containerProperties);
         }
 
-        public async Task<T> UpsertAsync<T>(Container container, T entity)
+        public async Task<T> UpsertItemAsync<T>(Container container, T entity, ItemRequestOptions requestoptions = null)
 
         {
+
             T item = default(T);
             try
             {
-                item = await container.UpsertItemAsync(entity);
 
+                item = await container.UpsertItemAsync(entity);
             }
             catch (CosmosException cosmosEx)
             {
