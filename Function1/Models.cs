@@ -12,7 +12,7 @@ namespace CosmosOptimize
         public int Age { get; set; }
         public string Name { get; set; }
         public string Gender { get; set; }
-        public string Copmany { get; set; }
+        public string Company { get; set; }
         public string Email { get; set; }
         public string Phone { get; set; }
         public string Address { get; set; }
@@ -32,7 +32,7 @@ namespace CosmosOptimize
         public int Age { get; set; }
         public string Name { get; set; }
         public string Gender { get; set; }
-        public string Copmany { get; set; }
+        public string Company { get; set; }
         public string Email { get; set; }
         public string Phone { get; set; }
         public string Address { get; set; }
@@ -54,7 +54,7 @@ namespace CosmosOptimize
         public int Age { get; set; }
         public string Name { get; set; }
         public string Gender { get; set; }
-        public string Copmany { get; set; }
+        public string Company { get; set; }
         public string Email { get; set; }
         public string Phone { get; set; }
         public string Address { get; set; }
@@ -72,6 +72,8 @@ namespace CosmosOptimize
 
         public string id => ClassId;
         public string MentorId { get; set; }
+        public string MentorName { get; set; }
+        public string MentorEmail { get; set; }
         public string ClassId { get; set; }
         public string ClassName { get; set; }
         public string Date { get; set; }
@@ -87,7 +89,8 @@ namespace CosmosOptimize
 
         public string id => ClassId;
         public string MentorId { get; set; }
-
+        public string MentorName { get; set; }
+        public string MentorEmail { get; set; }
         public string ClassId { get; set; }
         public string ClassName { get; set; }
         public string Date { get; set; }
@@ -102,7 +105,12 @@ namespace CosmosOptimize
     {
         public string id => this.RegistrationId;
         public string MentorId { get; set; }
+        public string MentorName { get; set; }
+        public string MentorEmail { get; set; }
         public string ClassId { get; set; }
+        public string ClassName { get; set; }
+        public string ClassDate { get; set; }
+        public string ClassAddress { get; set; }
         public string RegistrationId { get; set; }
         public int Age { get; set; }
         public string Name { get; set; }
@@ -119,7 +127,13 @@ namespace CosmosOptimize
         public string id => this.RegistrationId;
         public string partitionKey { get; set; }
         public string MentorId { get; set; }
+        public string MentorName { get; set; }
+        public string MentorEmail { get; set; }
+
         public string ClassId { get; set; }
+        public string ClassName { get; set; }
+        public string ClassDate { get; set; }
+        public string ClassAddress { get; set; }
         public string RegistrationId { get; set; }
         public string StudentId { get; set; }
         public int Age { get; set; }

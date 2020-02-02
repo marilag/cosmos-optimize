@@ -1,0 +1,2 @@
+SELECT r.ClassId, r.ClassName, r.ClassDate, r.ClassAddress, count(r) as TotalRegistrations  FROM r where r.MentorId  = 'fc985b23-2ab5-46a8-9f9b-1bf3af9f365c' 
+group by r.ClassId, r.ClassName, r.ClassDate, r.ClassAddress

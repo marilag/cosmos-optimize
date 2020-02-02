@@ -14,6 +14,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace CosmosOptimize
 {
@@ -36,10 +37,6 @@ namespace CosmosOptimize
                             ts.Milliseconds / 10);
         }
 
-        private async Task TaskInsertItem<T>(T item)
-        {
-
-        }
 
         [FunctionName("delete")]
         public async Task<IActionResult> delete(
@@ -89,105 +86,192 @@ namespace CosmosOptimize
 
             if (string.IsNullOrEmpty(json)) return new OkObjectResult("No data to load");
 
+            Stopwatch stopWatchInsertOperation = new Stopwatch();
 
             try
             {
 
+                log.LogInformation($"Insert operation started...");
+                stopWatchInsertOperation.Start();
                 ///COMMENT THIS OUT TO TEST BULK EXECUTION
                 _cosmos.CosmosClientOptions.AllowBulkExecution = true;
-                await _cosmos.cosmosDatabase.ReplaceThroughputAsync(10000);
+                await _cosmos.cosmosDatabase.ReplaceThroughputAsync(2000);
                 log.LogInformation($"AllowBulkExecution set to true. RU increased to 10000");
 
                 var TaskInsertItem = new List<Task>();
+
+                var maxThrottler = 5;
+                var throttler = new SemaphoreSlim(maxThrottler);
 
                 /// Embedded model
                 /// 1 collection - Mentor 2
                 /// 1 document for Mentor, Class and Registrations
                 log.LogInformation($"Setup Embedded Model...");
                 var EmbeddedModel = JsonConvert.DeserializeObject<List<Mentor2>>(json);
-                EmbeddedModel.ForEach(m =>
-                {
-                    m.Classes.ForEach(c =>
-                    {
-                        c.MentorId = m.MentorId;
-                        c.Registrations.ForEach(r =>
-                        {
-                            r.ClassId = c.ClassId;
-                            r.MentorId = c.MentorId;
-                        });
-                    }
-                );
-                    TaskInsertItem.Add(Mentor2.UpsertItemAsync(m));
-                });
 
-                await Task.WhenAll(TaskInsertItem);
+                double maxEmbeddedRU = 0.00;
+                int itemsProcessed = 0;
+                EmbeddedModel.ForEach(m =>
+               {
+                   m.Classes.ForEach(c =>
+                   {
+                       c.MentorId = m.MentorId;
+                       c.MentorName = m.Name;
+                       c.MentorEmail = m.Email;
+                       c.Registrations.ForEach(r =>
+                       {
+                           r.ClassId = c.ClassId;
+                           r.ClassName = c.ClassName;
+                           r.ClassDate = c.Date;
+                           r.ClassAddress = c.Address;
+                           r.MentorId = c.MentorId;
+                           r.MentorName = c.MentorName;
+                           r.MentorEmail = c.MentorEmail;
+                       });
+                   }
+               );
+                   throttler.Wait();
+                   TaskInsertItem.Add(Task.Run(() =>
+                   {
+                       Mentor2.UpsertItemAsync(m).ContinueWith(itemresponse =>
+                       {
+                           maxEmbeddedRU = (maxEmbeddedRU < itemresponse.Result.RequestCharge) ? itemresponse.Result.RequestCharge : maxEmbeddedRU;
+                           itemsProcessed++;
+                       });
+                       throttler.Release();
+                   }));
+               });
+                throttler.Release(maxThrottler);
+                Task.WaitAll(TaskInsertItem.ToArray());
                 stopWatch.Stop();
                 var EmbeddedModelElapsedTime = FormatTime(stopWatch.Elapsed);
-                log.LogInformation($"Embedded model completed. Items: {EmbeddedModel.Count} Time elapsed:{EmbeddedModelElapsedTime}");
+                log.LogInformation($"Insert Embedded model completed.  Items: {EmbeddedModel.Count} Process: {itemsProcessed} Max RU: {maxEmbeddedRU} Time elapsed:{EmbeddedModelElapsedTime}");
 
                 /// Reference+Embedded model
                 /// 1 collection - Mentor 3
                 /// Separate Mentor document,Combined  Class + Registration
                 log.LogInformation($"Setup Reference + Embedded Model...");
                 var MentorOnly = JsonConvert.DeserializeObject<List<Mentor1>>(json);
+
                 TaskInsertItem = new List<Task>();
                 stopWatch.Restart();
+                double MentorOnlyRU = 0.00;
+                MentorOnly.ForEach(m =>
+                {
+                    throttler.WaitAsync();
+                    TaskInsertItem.Add(Task.Run(() =>
+                   {
+                       Mentor3.UpsertItemAsync(m)
+                       .ContinueWith(itemresponse => { MentorOnlyRU = (MentorOnlyRU > itemresponse.Result.RequestCharge) ? MentorOnlyRU : itemresponse.Result.RequestCharge; });
+                       throttler.Release();
+                   }));
+                });
 
-                MentorOnly.ForEach(m => TaskInsertItem.Add(Mentor3.UpsertItemAsync(m)));
-
-                //COMMENT THIS TO DEMO THROTTLING
+                throttler.Release(maxThrottler);
                 await Task.WhenAll(TaskInsertItem);
                 TaskInsertItem = new List<Task>();
+                double classReferenceMaxRU = 0.00;
 
-                (from m in EmbeddedModel
-                 from c in m.Classes
-                 select c).ToList().ForEach(r => TaskInsertItem.Add(Mentor3.UpsertItemAsync(r)));
+                var embeddedmodel = (from m in EmbeddedModel
+                                     from c in m.Classes
+                                     select c).ToList();
 
+
+                embeddedmodel.ForEach(r =>
+                {
+                    throttler.WaitAsync();
+                    TaskInsertItem.Add(Task.Run(() =>
+                   {
+                       Mentor3.UpsertItemAsync(r)
+                       .ContinueWith(itemresponse => { classReferenceMaxRU = (classReferenceMaxRU > itemresponse.Result.RequestCharge) ? classReferenceMaxRU : itemresponse.Result.RequestCharge; });
+                       throttler.Release();
+                   }));
+                });
+
+                throttler.Release(maxThrottler);
                 await Task.WhenAll(TaskInsertItem);
                 stopWatch.Stop();
                 var EmbeddedReferenceModelTimeElapsed = FormatTime(stopWatch.Elapsed);
-                log.LogInformation($"Reference + Embedded Model completed. Items: {TaskInsertItem.Count} Time elapsed:{EmbeddedReferenceModelTimeElapsed}");
+
+                log.LogInformation($"Insert Reference + Embedded Model completed. Classes: {embeddedmodel.Count} MaxRU: {classReferenceMaxRU}  Mentors: {MentorOnly.Count} MaxRU: {MentorOnlyRU}  Time elapsed:{EmbeddedReferenceModelTimeElapsed}");
 
                 /// Synthetic Key
                 /// 1 Collection - Registration2
                 /// PartitionKey = StudenId_MentorId_RegisrationId                
-                log.LogInformation($"Setup Synthetic Key...");
+                 maxThrottler = 100;
+                 throttler = new SemaphoreSlim(maxThrottler);
                 stopWatch.Restart();
                 TaskInsertItem = new List<Task>();
                 //Add to Synthetic Key
-                (from m in EmbeddedModel
-                 from c in m.Classes
-                 from r in c.Registrations
-                 select new Registration2(r.MentorId, r.ClassId)
-                 {
-                     Age = r.Age,
-                     Company = r.Company,
-                     Email = r.Email,
-                     Gender = r.Gender,
-                     Name = r.Name,
-                     Phone = r.Phone,
-                     RegistrationId = r.RegistrationId
-                 }).ToList().ForEach(r => TaskInsertItem.Add(Registration2.UpsertItemAsync(r)));
+                var Model2Registrations = (from m in EmbeddedModel
+                                           from c in m.Classes
+                                           from r in c.Registrations
+                                           select new Registration2(r.MentorId, r.ClassId)
+                                           {
+                                               Age = r.Age,
+                                               Company = r.Company,
+                                               Email = r.Email,
+                                               Gender = r.Gender,
+                                               Name = r.Name,
+                                               Phone = r.Phone,
+                                               RegistrationId = r.RegistrationId,
+                                               ClassId = r.ClassId,
+                                               ClassAddress = r.ClassAddress,
+                                               ClassDate = r.ClassDate,
+                                               ClassName = r.ClassName,
+                                               MentorName = r.MentorName,
+                                               MentorId = r.MentorId,
+                                               MentorEmail = r.MentorEmail
+                                           }).ToList();
+
+                log.LogInformation($"Insert {Model2Registrations.Count} Registrations with Synthetic Key...");
+
+                double registrationSyntheticMaxRU = 0.00;
+                Model2Registrations.ForEach(r =>
+               {
+                   throttler.WaitAsync();
+                   TaskInsertItem.Add(Task.Run(() =>
+                   {
+                       Registration2.UpsertItemAsync(r)
+                          .ContinueWith(itemresponse => { registrationSyntheticMaxRU = (registrationSyntheticMaxRU > itemresponse.Result.RequestCharge) ? registrationSyntheticMaxRU : itemresponse.Result.RequestCharge; });
+
+                       throttler.Release();
+                   }));
+               });
+
+                throttler.Release(maxThrottler);
 
                 await Task.WhenAll(TaskInsertItem);
                 stopWatch.Stop();
                 var SyntheticKeyTimeElapsed = FormatTime(stopWatch.Elapsed);
-                log.LogInformation($"Synthetic Key Registration completed. Items: {TaskInsertItem.Count} Time elapsed:{SyntheticKeyTimeElapsed}");
+
 
                 /// Separate Collections
                 /// 1 collection each for Mentor, Class, Regisrations
                 /// Mentor
                 log.LogInformation($"Setup separate collections model...");
-                Stopwatch stopWatch2 = new Stopwatch();
-                stopWatch2.Start();
+
                 stopWatch.Restart();
                 TaskInsertItem = new List<Task>();
-                MentorOnly.ForEach(m => TaskInsertItem.Add(Mentor1.UpsertItemAsync(m)));
+
+                double IndividualMentorMaxRU = 0.00;
+                MentorOnly.ForEach(m =>
+               {
+                   throttler.WaitAsync();
+                   TaskInsertItem.Add(Task.Run(() =>
+                   {
+                       Mentor1.UpsertItemAsync(m)
+                                    .ContinueWith(itemresponse => { IndividualMentorMaxRU = (IndividualMentorMaxRU > itemresponse.Result.RequestCharge) ? IndividualMentorMaxRU : itemresponse.Result.RequestCharge; });
+
+                       throttler.Release();
+                   }));
+               });
+                throttler.Release(maxThrottler);
+
                 await Task.WhenAll(TaskInsertItem);
                 stopWatch.Stop();
                 stopWatch.Restart();
-                log.LogInformation($"Insert Mentor completed. Items: {MentorOnly.Count} Time elapsed:{FormatTime(stopWatch.Elapsed)}");
-
+                double individualClassRU = 0.00;
                 /// Class
                 stopWatch.Restart();
                 TaskInsertItem = new List<Task>();
@@ -204,33 +288,60 @@ namespace CosmosOptimize
                                          MentorId = c.MentorId
                                      }).ToList();
 
-                Model1Classes.ForEach(c => TaskInsertItem.Add(Classes1.UpsertItemAsync(c)));
+                Model1Classes.ForEach(c =>
+               {
+                   throttler.WaitAsync();
+                   TaskInsertItem.Add(Task.Run(() =>
+                   {
+                       Classes1.UpsertItemAsync(c)
+                                   .ContinueWith(itemresponse => { individualClassRU = (individualClassRU > itemresponse.Result.RequestCharge) ? individualClassRU : itemresponse.Result.RequestCharge; });
+
+                       throttler.Release();
+                   }));
+               });
+                throttler.Release(maxThrottler);
 
                 await Task.WhenAll(TaskInsertItem);
                 stopWatch.Stop();
-                log.LogInformation($"Insert Classes completed. Items: {TaskInsertItem.Count} Time elapsed:{FormatTime(stopWatch.Elapsed)}");
+
 
                 ///Registration
 
                 stopWatch.Restart();
                 TaskInsertItem = new List<Task>();
-                log.LogInformation($"Insert Registrations...");
-
+                double IndividualRegistrationMaxRU = 0.00;
                 var Model1Regisrations = (from m in EmbeddedModel
                                           from c in m.Classes
                                           from r in c.Registrations
                                           select r).ToList();
-                Model1Regisrations.ForEach(r => TaskInsertItem.Add(Registration1.UpsertItemAsync(r)));
+
+                log.LogInformation($"Insert {Model1Regisrations.Count} Registrations...");
+
+                Model1Regisrations.ForEach(r =>
+               {
+                   throttler.WaitAsync();
+                   TaskInsertItem.Add(Task.Run(() =>
+                   {
+                       Registration1.UpsertItemAsync(r)
+                             .ContinueWith(itemresponse => { IndividualRegistrationMaxRU = (IndividualRegistrationMaxRU > itemresponse.Result.RequestCharge) ? IndividualRegistrationMaxRU : itemresponse.Result.RequestCharge; });
+
+                       throttler.Release();
+                   }));
+               });
+                throttler.Release(maxThrottler);
 
                 await Task.WhenAll(TaskInsertItem);
                 stopWatch.Stop();
-                log.LogInformation($"Insert Registration completed.Items: {TaskInsertItem.Count} Time elapsed:{FormatTime(stopWatch.Elapsed)}");
-
-                stopWatch2.Stop();
-                var SeparateCollectionTimeElapsed = FormatTime(stopWatch2.Elapsed);
-                log.LogInformation($"Separate collection completed. Time elapsed:{SeparateCollectionTimeElapsed}");
+                stopWatchInsertOperation.Stop();
 
 
+
+                log.LogInformation($"Insert Embedded model completed. Items: {EmbeddedModel.Count} Max RU: {maxEmbeddedRU} Time elapsed:{EmbeddedModelElapsedTime}");
+                log.LogInformation($"Insert Reference + Embedded Model completed. Classes: {embeddedmodel.Count} MaxRU: {classReferenceMaxRU}  Mentors: {MentorOnly.Count} MaxRU: {MentorOnlyRU}  Time elapsed:{EmbeddedReferenceModelTimeElapsed}");
+                log.LogInformation($"Insert Synthetic Key Registration completed. Items: {Model2Registrations.Count} maxRU: {registrationSyntheticMaxRU} Time elapsed:{SyntheticKeyTimeElapsed}");
+                log.LogInformation($"Insert individual Mentor completed. Items: {MentorOnly.Count} MaxRU: {IndividualMentorMaxRU} Time elapsed:{FormatTime(stopWatch.Elapsed)}");
+                log.LogInformation($"Insert Classes completed. Items: {Model1Classes.Count} MaxRU: {individualClassRU} Time elapsed:{FormatTime(stopWatch.Elapsed)}");
+                log.LogInformation($"Insert Registration completed.Items: {Model1Regisrations.Count} MaxRU: {IndividualRegistrationMaxRU} Time elapsed:{FormatTime(stopWatch.Elapsed)}");
             }
             catch (Exception ex)
             {
@@ -241,7 +352,7 @@ namespace CosmosOptimize
                 _cosmos.CosmosClientOptions.AllowBulkExecution = false;
                 await _cosmos.cosmosDatabase.ReplaceThroughputAsync(800);
                 log.LogInformation($"AllowBulkExecution set to false. RU decreased to 600");
-                log.LogInformation($"Seed completed");
+                log.LogInformation($"Seed completed. Insert operation elapsed time : {FormatTime(stopWatchInsertOperation.Elapsed)}");
             }
 
             return (ActionResult)new OkResult();
@@ -303,7 +414,7 @@ namespace CosmosOptimize
             stopWatch.Start();
             log.LogInformation("Query from Embeddded model...");
             container = await _cosmos.GetOrCreateContainerAsync("Mentor2", "/MentorId");
-            var resultEmbedded = await _cosmos.QueryAsync<Mentor1>(container,  
+            var resultEmbedded = await _cosmos.QueryAsync<Mentor1>(container,
             new QueryDefinition("Select cl.id, cl.MentorId, cl.ClassId, cl.ClassName from c JOIN cl in c.Classes where cl.MentorId = @id").WithParameter("@id", id));
 
             stopWatch.Stop();
@@ -314,7 +425,7 @@ namespace CosmosOptimize
             log.LogInformation("Query from Reference + Embedded model...");
             container = await _cosmos.GetOrCreateContainerAsync("Mentor3", "/MentorId");
             var query = new QueryDefinition("Select c.id, c.MentorId, c.ClassId, c.ClassName, c.Type from c where c.MentorId = @id and c.Type = 'Class'").WithParameter("@id", id);
-            var resultEmbeddedReference = await _cosmos.QueryAsync<Mentor1>(container, query );
+            var resultEmbeddedReference = await _cosmos.QueryAsync<Mentor1>(container, query);
             stopWatch.Stop();
             var mentor3Result = new { Result = resultEmbeddedReference, ElapsedTime = FormatTime(stopWatch.Elapsed) };
             log.LogInformation($"Reference + Embedded model completed. Items: {resultEmbeddedReference.Count}  Time elapsed: {FormatTime(stopWatch.Elapsed)}");
@@ -322,7 +433,7 @@ namespace CosmosOptimize
             stopWatch.Restart();
             log.LogInformation("Query from individual collection...");
             container = await _cosmos.GetOrCreateContainerAsync("Classes1", "/ClassId");
-            var resultIndividual = await _cosmos.QueryScanAsync<Mentor1>(container, 
+            var resultIndividual = await _cosmos.QueryScanAsync<Mentor1>(container,
             new QueryDefinition("Select c.id, c.MentorId, c.ClassId, c.ClassName, c.Type from c where c.MentorId = @id").WithParameter("@id", id));
             stopWatch.Stop();
             var mentor1Result = new { Result = resultIndividual, ElapsedTime = FormatTime(stopWatch.Elapsed) };
@@ -332,7 +443,7 @@ namespace CosmosOptimize
         }
 
         [FunctionName("mentorsstudents")]
-         public async Task<IActionResult> mentorsstudents(
+        public async Task<IActionResult> mentorsstudents(
                 [HttpTrigger(AuthorizationLevel.Function, "get", Route = "mentors/{id}/classregistrations")] HttpRequest req,
                 string id,
                 ILogger log)
@@ -347,7 +458,7 @@ namespace CosmosOptimize
             stopWatch.Start();
             log.LogInformation("Query from Embeddded model...");
             container = await _cosmos.GetOrCreateContainerAsync("Mentor2", "/MentorId");
-            var resultEmbedded = await _cosmos.QueryAsync<Mentor1>(container,  
+            var resultEmbedded = await _cosmos.QueryAsync<Mentor1>(container,
             new QueryDefinition("SELECT cl.ClassId, cl.ClassName, cl.Registrations FROM c JOIN cl in c.Classes where c.MentorId = @id")
             .WithParameter("@id", id));
 
@@ -359,7 +470,7 @@ namespace CosmosOptimize
             log.LogInformation("Query from Reference + Embedded model...");
             container = await _cosmos.GetOrCreateContainerAsync("Mentor3", "/MentorId");
             var query = new QueryDefinition("SELECT c.ClassId, c.ClassName, c.Registrations FROM c where c.MentorId = @id and c.Type = 'Class'").WithParameter("@id", id);
-            var resultEmbeddedReference = await _cosmos.QueryAsync<Mentor1>(container, query );
+            var resultEmbeddedReference = await _cosmos.QueryAsync<Mentor1>(container, query);
             stopWatch.Stop();
             var mentor3Result = new { Result = resultEmbeddedReference, ElapsedTime = FormatTime(stopWatch.Elapsed) };
             log.LogInformation($"Reference + Embedded model completed. Items: {resultEmbeddedReference.Count}  Time elapsed: {FormatTime(stopWatch.Elapsed)}");
@@ -367,7 +478,7 @@ namespace CosmosOptimize
             stopWatch.Restart();
             log.LogInformation("Query from individual collection...");
             container = await _cosmos.GetOrCreateContainerAsync("Registration1", "/ClassId");
-            var resultIndividual = await _cosmos.QueryScanAsync<Mentor1>(container, 
+            var resultIndividual = await _cosmos.QueryScanAsync<Mentor1>(container,
             new QueryDefinition("SELECT * FROM c where c.MentorId = @id").WithParameter("@id", id));
             stopWatch.Stop();
             var mentor1Result = new { Result = resultIndividual, ElapsedTime = FormatTime(stopWatch.Elapsed) };
