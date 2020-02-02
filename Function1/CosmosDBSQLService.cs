@@ -19,7 +19,7 @@ namespace CosmosOptimize
         Task<T> ReadItemAsync<T>(Container container, string Id);
         Task<T> ReadItemAsync<T>(Container container, string Id, string partitionkey);
         Task<T> UpsertItemAsync<T>(Container container, T entity, ItemRequestOptions requestoptions = null);
-         Task DeleteDatabase();
+        Task DeleteDatabase();
     }
 
     public class CosmosDBSQLService : ICosmosDBSQLService
@@ -157,7 +157,7 @@ namespace CosmosOptimize
 
         public async Task<List<T>> QueryAsync<T>(Container container, QueryDefinition queryDefinition)
         {
-            List<T> results = new List<T>();
+            var results = new List<T>();
 
             try
             {
