@@ -192,7 +192,7 @@ namespace CosmosOptimize
 
                 log.LogInformation($"Insert Reference + Embedded Model completed. Classes: {embeddedmodel.Count} MaxRU: {classReferenceMaxRU}  Mentors: {MentorOnly.Count} MaxRU: {MentorOnlyRU}  Time elapsed:{EmbeddedReferenceModelTimeElapsed}");
 
-               
+
                 /// Separate Collections
                 /// 1 collection each for Mentor, Class, Regisrations
                 /// Mentor
@@ -310,9 +310,9 @@ namespace CosmosOptimize
             return (ActionResult)new OkResult();
         }
 
-        [FunctionName("mentors")]
-        public async Task<IActionResult> mentors(
-            [HttpTrigger(AuthorizationLevel.Function, "get", Route = null)] HttpRequest req,
+        [FunctionName("getmentors")]
+        public async Task<IActionResult> getmentors(
+            [HttpTrigger(AuthorizationLevel.Function, "get", Route = "mentors")] HttpRequest req,
             ILogger log)
         {
             log.LogInformation("Get all mentors.");
@@ -463,6 +463,36 @@ namespace CosmosOptimize
             log.LogInformation($"Items: {count} Elapsed: {FormatTime(stopWatch.Elapsed)} RU= {resultcharge}");
 
             return (ActionResult)new OkObjectResult($"Items: {count} Elapsed: {FormatTime(stopWatch.Elapsed)} RU= {resultcharge}");
+        }
+
+        [FunctionName("postmentors")]
+        public async Task<IActionResult> postmentors(
+               [HttpTrigger(AuthorizationLevel.Function, "post", Route = "mentors")] HttpRequest req,
+               ILogger log
+               )
+        {
+            
+           req.GetQueryParameterDictionary().TryGetValue("c", out var consistency);
+            log.LogInformation("Get mentor count.");
+            Stopwatch stopWatch = new Stopwatch();
+            stopWatch.Start();
+            var container = await _cosmos.GetOrCreateContainerAsync("MentorConsistent", "/MentorId");
+            var mentorId = System.Guid.NewGuid().ToString();
+            var requestCharge = 0.00;
+            var consistencyLevel = (consistency=="1")? ConsistencyLevel.Strong : ConsistencyLevel.Eventual;
+            await container.CreateItemAsync(new Mentor1()
+            {
+                MentorId = mentorId,
+                Name = "Marilag Dimatulac",
+                About = "I'm a software developer",
+                Address = "Female"
+            }, new PartitionKey(mentorId), new ItemRequestOptions() { ConsistencyLevel = consistencyLevel })
+            .ContinueWith(itemResponse => { requestCharge = itemResponse.Result.RequestCharge; });
+            stopWatch.Start();
+
+            log.LogInformation($"Insert completed with {consistencyLevel.ToString()} consistency. Elapsed: {FormatTime(stopWatch.Elapsed)} RU= {requestCharge}");
+            return (ActionResult)new OkObjectResult($"Insert completed. Elapsed: {FormatTime(stopWatch.Elapsed)} RU= {requestCharge}");
+
         }
 
     }
