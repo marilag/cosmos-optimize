@@ -1,0 +1,8 @@
+localhost
+(Invoke-WebRequest("http://localhost:7071/api/mentors?c=1") -method 'post').Content 
+(Invoke-WebRequest("http://localhost:7071/api/mentors?c=2") -method 'post').Content 
+(Invoke-WebRequest("http://localhost:7071/api/mentorscount")).Content
+
+function
+Invoke-WebRequest("https://func-cosmos-optimize.azurewebsites.net/api/seed?code=OG6Yeqj/qD1FCbmmy4vTUv8EMozyrz4wWdpeQbvR/h/icQdCCT9iJQ==")
+Invoke-WebRequest("https://func-cosmos-optimize.azurewebsites.net/api/delete?code=JA2z8mx5nrLbB/9KsPovuT1FM2IKlwjKdITj0bXx0vWo/FpJRWWEVQ==") -method 'delete'
