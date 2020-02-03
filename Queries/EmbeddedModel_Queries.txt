@@ -4,8 +4,12 @@ JOIN r in cl.Registrations
 where c.MentorId = 'fc985b23-2ab5-46a8-9f9b-1bf3af9f365c'
 group by cl.ClassId, cl.ClassName, cl.Date, cl.Address
 
-SELECT cl.ClassId, cl.ClassName, cl.Date, cl.Address, r as TotalRegistrations FROM c 
+SELECT cl.ClassId, cl.ClassName, cl.Date, cl.Address, r.RegistrationId FROM c 
 JOIN cl in c.Classes 
 JOIN r in cl.Registrations
-where r.RegistrationId = 'fc985b23-2ab5-46a8-9f9b-1bf3af9f365c'
-group by cl.ClassId, cl.ClassName, cl.Date, cl.Address
+where cl.MentorId = 'fc985b23-2ab5-46a8-9f9b-1bf3af9f365c' 
+
+SELECT cl.ClassId, cl.ClassName, cl.Date, cl.Address, r.RegistrationId FROM c 
+JOIN cl in c.Classes 
+JOIN r in cl.Registrations
+where cl.ClassId = '5315fde0-a246-4297-ba68-9bc90236efcc' 

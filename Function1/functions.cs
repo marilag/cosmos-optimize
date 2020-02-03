@@ -81,7 +81,6 @@ namespace CosmosOptimize
             {
                 json = webclient.DownloadString(_config["AzureStorageDemo:CosmosOptimizeJson"]);
                 log.LogInformation($"Seed data download. Time elapsed: {FormatTime(stopWatch.Elapsed)}");
-
             }
 
             if (string.IsNullOrEmpty(json)) return new OkObjectResult("No data to load");
@@ -90,12 +89,11 @@ namespace CosmosOptimize
 
             try
             {
-
                 log.LogInformation($"Insert operation started...");
                 stopWatchInsertOperation.Start();
                 ///COMMENT THIS OUT TO TEST BULK EXECUTION
                 _cosmos.CosmosClientOptions.AllowBulkExecution = true;
-                await _cosmos.cosmosDatabase.ReplaceThroughputAsync(5000);
+                await _cosmos.cosmosDatabase.ReplaceThroughputAsync(10000);
                 log.LogInformation($"AllowBulkExecution set to true. RU increased to 5000");
 
                 var TaskInsertItem = new List<Task>();
@@ -439,6 +437,40 @@ namespace CosmosOptimize
             return (ActionResult)new OkObjectResult(new { Embedded = resultIndividual, EmbeddedReference = resultEmbeddedReference, Individual = resultIndividual });
         }
 
+        [FunctionName("mentoritem")]
+        public async Task<IActionResult> mentoritem(
+                [HttpTrigger(AuthorizationLevel.Function, "get", Route = "mentors/{id}")] HttpRequest req,
+                string id,
+                ILogger log)
+        {
+            log.LogInformation("Get mentor.");
+            Stopwatch stopWatch = new Stopwatch();
+            var container = await _cosmos.GetOrCreateContainerAsync("Mentor2", "/MentorId");
+            req.GetQueryParameterDictionary().TryGetValue("mode", out var mode);
+
+            if (mode == "1")
+            {
+                stopWatch.Start();
+                var result = await _cosmos.QueryAsync<Mentor1>(container,
+                new QueryDefinition("Select * from c where c.MentorId = @id").WithParameter("@id", id));
+                stopWatch.Stop();
+                var queryResult = $"Using query. Item: {result.Count} Elapsed: {FormatTime(stopWatch.Elapsed)}";
+                log.LogInformation(queryResult);
+                return (ActionResult)new OkObjectResult(queryResult);
+            }
+            else
+            {
+                stopWatch.Restart();
+                var result = await _cosmos.ReadItemAsync<Mentor1>(container, id, id);
+                stopWatch.Stop();
+                var queryResult = $"Using ReadItemAsync. Item: {result == null} Elapsed: {FormatTime(stopWatch.Elapsed)}";
+
+                log.LogInformation(queryResult);
+                return (ActionResult)new OkObjectResult(queryResult);
+            }
+
+        }
+
         [FunctionName("mentorscount")]
         public async Task<IActionResult> mentorscount(
                [HttpTrigger(AuthorizationLevel.Function, "get", Route = null)] HttpRequest req,
@@ -471,15 +503,15 @@ namespace CosmosOptimize
                ILogger log
                )
         {
-            
-           req.GetQueryParameterDictionary().TryGetValue("c", out var consistency);
+
+            req.GetQueryParameterDictionary().TryGetValue("c", out var consistency);
             log.LogInformation("Get mentor count.");
             Stopwatch stopWatch = new Stopwatch();
             stopWatch.Start();
             var container = await _cosmos.GetOrCreateContainerAsync("MentorConsistent", "/MentorId");
             var mentorId = System.Guid.NewGuid().ToString();
             var requestCharge = 0.00;
-            var consistencyLevel = (consistency=="1")? ConsistencyLevel.Strong : ConsistencyLevel.Eventual;
+            var consistencyLevel = (consistency == "1") ? ConsistencyLevel.Strong : ConsistencyLevel.Eventual;
             await container.CreateItemAsync(new Mentor1()
             {
                 MentorId = mentorId,

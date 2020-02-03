@@ -3,3 +3,14 @@ JOIN r in cl.Registrations
 where cl.MentorId = 'fc985b23-2ab5-46a8-9f9b-1bf3af9f365c' 
 and cl.Type = 'Class'
 group by cl.ClassId, cl.ClassName, cl.Date, cl.Address
+
+SELECT cl.ClassId, cl.ClassName, cl.Date, cl.Address, r.RegistrationId FROM cl 
+JOIN r in cl.Registrations
+where cl.MentorId = 'fc985b23-2ab5-46a8-9f9b-1bf3af9f365c' 
+and cl.Type = 'Class'
+
+
+SELECT cl.ClassId, cl.ClassName, cl.Date, cl.Address, r.RegistrationId FROM cl 
+JOIN r in cl.Registrations
+where cl.ClassId = '5315fde0-a246-4297-ba68-9bc90236efcc' 
+and cl.Type = 'Class'

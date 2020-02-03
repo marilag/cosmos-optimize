@@ -33,6 +33,9 @@ dotnet add package  Microsoft.Azure.Cosmos
 az storage account  create -n storcosmosoptimize -g rg-cosmos-optimize -l westeurope --sku Standard_LRS
 az functionapp create --name func-cosmos-optimize --consumption-plan-location westeurope -g cosmos-optimize -s storcosmosoptimize
 az functionapp create --name func-cosmos-optimize-sea --consumption-plan-location southeastasia -g cosmos-optimize -s storcosmosoptimize
+az functionapp create --name func-cosmos-optimize-neu --consumption-plan-location northeurope -g cosmos-optimize -s storcosmosoptimize
 
+#TODO
 #3.2. Add function MSI access to keyvault
+#3.3  Configure appsettings
 #3.3 Deploy code
