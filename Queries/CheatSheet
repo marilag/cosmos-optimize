@@ -8,16 +8,17 @@ Invoke-WebRequest("https://func-cosmos-optimize.azurewebsites.net/api/seed?code=
 Invoke-WebRequest("https://func-cosmos-optimize.azurewebsites.net/api/delete?code=JA2z8mx5nrLbB/9KsPovuT1FM2IKlwjKdITj0bXx0vWo/FpJRWWEVQ==") -method 'delete'
 
 
-Query Location
+Location
 Insert:
 (Invoke-WebRequest("https://func-cosmos-optimize.azurewebsites.net/api/mentors?mode=1&code=fFapXuTWMi2VC7jB1DboCFpEjDF3B/dNdR31tMQyVucMaQn7GrdvGg==") -method 'post').Content
-Get
+Get:
 (Invoke-WebRequest("https://func-cosmos-optimize.azurewebsites.net/api/mentorscount?code=fFapXuTWMi2VC7jB1DboCFpEjDF3B/dNdR31tMQyVucMaQn7GrdvGg==")).Content
 (Invoke-WebRequest("https://func-cosmos-optimize-neu.azurewebsites.net/api/mentorscount?code=sAc0ahVoMr2zb5Ga1OEQhofLEDJXREyJx2A0k4yIZiM1GVYUHZuJRw==")).Content
 (Invoke-WebRequest("https://func-cosmos-optimize-sea.azurewebsites.net/api/mentorscount?code=nR9GZBiiML5nta8FWtjP2PwoJagogfbt0LEVr2jV8cSZmEQ9KsxhfA==")).Content
 
 Point Read
-(Invoke-WebRequest("https://func-cosmos-optimize.azurewebsites.net/api/mentors/d5d3d101-c286-443e-9d7c-279785d2d4e6?mode=1&code=fFapXuTWMi2VC7jB1DboCFpEjDF3B/dNdR31tMQyVucMaQn7GrdvGg==")).Content
+(Invoke-WebRequest("https://func-cosmos-optimize.azurewebsites.net/api/mentors/fc985b23-2ab5-46a8-9f9b-1bf3af9f365c?mode=1&code=fFapXuTWMi2VC7jB1DboCFpEjDF3B/dNdR31tMQyVucMaQn7GrdvGg==")).Content
+(Invoke-WebRequest("https://func-cosmos-optimize-sea.azurewebsites.net/api/mentors/fc985b23-2ab5-46a8-9f9b-1bf3af9f365c?mode=1&code=nR9GZBiiML5nta8FWtjP2PwoJagogfbt0LEVr2jV8cSZmEQ9KsxhfA==")).Content
 
 
 

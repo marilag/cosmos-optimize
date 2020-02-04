@@ -1,8 +1,14 @@
-SELECT cl.ClassId, cl.ClassName, cl.Date, cl.Address, Count(r) as TotalRegistrations FROM cl 
+SELECT cl.MentorId, cl.ClassId, cl.ClassName, cl.Date, cl.Address, Count(r) as TotalRegistrations FROM cl 
 JOIN r in cl.Registrations
 where cl.MentorId = 'fc985b23-2ab5-46a8-9f9b-1bf3af9f365c' 
 and cl.Type = 'Class'
-group by cl.ClassId, cl.ClassName, cl.Date, cl.Address
+group by cl.MentorId, cl.ClassId, cl.ClassName, cl.Date, cl.Address
+
+SELECT cl.MentorId, cl.ClassId, cl.ClassName, cl.Date, cl.Address, Count(r) as TotalRegistrations FROM cl 
+JOIN r in cl.Registrations
+where cl.Type = 'Class'
+group by cl.MentorId, cl.ClassId, cl.ClassName, cl.Date, cl.Address
+
 
 SELECT cl.ClassId, cl.ClassName, cl.Date, cl.Address, r.RegistrationId FROM cl 
 JOIN r in cl.Registrations

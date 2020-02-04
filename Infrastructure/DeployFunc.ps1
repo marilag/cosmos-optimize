@@ -9,9 +9,8 @@
 dotnet new -i "C:\Users\Marilag Dimatulac\Downloads\microsoft.azure.webjobs.projecttemplates.2.0.10369.nupkg"
 dotnet new -i "C:\Users\Marilag Dimatulac\Downloads\microsoft.azure.webjobs.itemtemplates.2.0.10369.nupkg"
 
-#2. Install function tool
+#2. Install azure function core tool
 npm install azure-functions-core-tools@core -g
-
 
 #3. Create function
 dotnet new "Azure Function" 
@@ -23,19 +22,23 @@ dotnet build
 #curl http://localhost:7071/api/fn1
 
 #4. Install packages
-dotnet add package Microsoft.Azure.Cosmos --interactive
-dotnet add package Microsoft.Extensions.Configuration.AzureKeyVault --interactive
+dotnet add package Microsoft.Azure.Cosmos 
+dotnet add package Microsoft.Extensions.Configuration.AzureKeyVault 
 #<PackageReference Include="Microsoft.Extensions.Configuration.AzureKeyVault" Version="2.1.1" />
-dotnet add package  Microsoft.Azure.Cosmos
 ## Deploy
 
-#3.1 Create with enable msi 
+#5. Create function app
+
+##Create storage account
 az storage account  create -n storcosmosoptimize -g rg-cosmos-optimize -l westeurope --sku Standard_LRS
+##Create azure function in your default region
 az functionapp create --name func-cosmos-optimize --consumption-plan-location westeurope -g cosmos-optimize -s storcosmosoptimize
+##Create azure function in your 2nd region 
 az functionapp create --name func-cosmos-optimize-sea --consumption-plan-location southeastasia -g cosmos-optimize -s storcosmosoptimize
+##Create azure function in your 3nd region 
 az functionapp create --name func-cosmos-optimize-neu --consumption-plan-location northeurope -g cosmos-optimize -s storcosmosoptimize
 
 #TODO
-#3.2. Add function MSI access to keyvault
-#3.3  Configure appsettings
-#3.3 Deploy code
+#6.1. Add function MSI access to keyvault
+#6.2  Configure appsettings
+#6.3 Deploy code
